@@ -39,25 +39,43 @@ def relu2(x):
 
 def relu3(x):
     # Define the different pieces of the function
-    piece1 = K.cast(K.greater(x, -1), dtype='float32') * K.cast(K.less(x, 1), dtype='float32') * 0
-    piece2 = K.cast(K.greater_equal(x, 1), dtype='float32') * K.cast(K.less_equal(x, 7), dtype='float32') * (x - 1)
-    piece3 = K.cast(K.greater(x, 7), dtype='float32') * 6
-    piece4 = K.cast(K.greater_equal(x, -7), dtype='float32') * K.cast(K.less_equal(x, -1), dtype='float32') * (x + 1)
-    piece5 = K.cast(K.less(x, -7), dtype='float32') * (-6)
+    piece1 = K.cast(K.greater(x, -0.5), dtype='float32') * K.cast(K.less(x, 0.5), dtype='float32') * K.zeros_like(x)
+    piece2 = K.cast(K.greater_equal(x, 0.5), dtype='float32') * K.cast(K.less_equal(x, 7), dtype='float32') * (6/6.5 * x - 6/6.5 * 0.5)
+    piece3 = K.cast(K.greater(x, 7), dtype='float32') * 6.0
+    piece4 = K.cast(K.greater_equal(x, -7), dtype='float32') * K.cast(K.less_equal(x, -0.5), dtype='float32') * (6/6.5 * x - 6/6.5 * 0.5)
+    piece5 = K.cast(K.less(x, -7), dtype='float32') * (-6.0)
     
     # Combine the pieces to create the full function
     return piece1 + piece2 + piece3 + piece4 + piece5
 
 def relu4(x):
     # Define the different pieces of the function
-    piece1 = K.cast(K.greater(x, -1), dtype='float32') * K.cast(K.less(x, 1), dtype='float32') * 0
-    piece2 = K.cast(K.greater_equal(x, 1), dtype='float32') * K.cast(K.less_equal(x, 5), dtype='float32') * (6/4 * x - 6/4)
-    piece3 = K.cast(K.greater(x, 5), dtype='float32') * 6
-    piece4 = K.cast(K.greater_equal(x, -5), dtype='float32') * K.cast(K.less_equal(x, -1), dtype='float32') * (6/4 * x + 6/4)
-    piece5 = K.cast(K.less(x, -5), dtype='float32') * -6
+    piece1 = K.cast(K.greater(x, -0.5), dtype='float32') * K.cast(K.less(x, 0.5), dtype='float32') * K.zeros_like(x)
+    piece2 = K.cast(K.greater_equal(x, 0.5), dtype='float32') * K.cast(K.less_equal(x, 5), dtype='float32') * (6/4.5 * x - 6/4.5 * 0.5)
+    piece3 = K.cast(K.greater(x, 5), dtype='float32') * 6.0
+    piece4 = K.cast(K.greater_equal(x, -5), dtype='float32') * K.cast(K.less_equal(x, -0.5), dtype='float32') * (6/4.5 * x + 6/4.5 * 0.5)
+    piece5 = K.cast(K.less(x, -5), dtype='float32') * (-6.0)
     
     # Combine the pieces to create the full function
     return piece1 + piece2 + piece3 + piece4 + piece5
+
+def relu5(x):
+    # Define the different pieces of the function
+    piece1 = K.cast(K.greater(x, -0.5), dtype='float32') * K.cast(K.less(x, 0.5), dtype='float32') * K.zeros_like(x)
+    piece2 = K.cast(K.greater_equal(x, 0.5), dtype='float32') * K.cast(K.less_equal(x, 6), dtype='float32') * (6/5.5 * x - 6/5.5 * 0.5)
+    piece3 = K.cast(K.greater(x, 6), dtype='float32') * 6.0
+    piece4 = K.cast(K.greater_equal(x, -6), dtype='float32') * K.cast(K.less_equal(x, -0.5), dtype='float32') * (6/5.5 * x + 6/5.5 * 0.5)
+    piece5 = K.cast(K.less(x, -6), dtype='float32') * -6.0
+    
+    # Combine the pieces to create the full function
+    return piece1 + piece2 + piece3 + piece4 + piece5
+
+def relu6(x):
+    piece1 = K.cast(K.less(x, -6), dtype='float32') * -6
+    piece2 = K.cast(K.greater_equal(x, -6), dtype='float32') * K.cast(K.less_equal(x, 6), dtype='float32') * x
+    piece3 = K.cast(K.greater(x, 6), dtype='float32') * 6
+
+    return piece1 + piece2 + piece3
 
 def preprocess_input(x):
     """Preprocesses a numpy array encoding a batch of images.
@@ -225,7 +243,7 @@ def _conv_block(inputs, filters, alpha, kernel=(3, 3), strides=(1, 1)):
                strides=strides,
                name='conv1', )(inputs)
     x = BatchNormalization(axis=channel_axis, name='conv1_bn')(x)
-    return Activation(relu4, name='conv1_relu')(x)
+    return Activation(relu3, name='conv1_relu')(x)
 
 def _depthwise_conv_block(inputs, pointwise_conv_filters, alpha,
                           depth_multiplier=1, strides=(1, 1), block_id=1, attention_module=None,
@@ -246,7 +264,7 @@ def _depthwise_conv_block(inputs, pointwise_conv_filters, alpha,
                         use_bias=False,
                         name='conv_dw_%d' % block_id)(x)
     x = BatchNormalization(axis=channel_axis, name='conv_dw_%d_bn' % block_id)(x)
-    x = Activation(relu4, name='conv_dw_%d_relu' % block_id)(x)
+    x = Activation(relu3, name='conv_dw_%d_relu' % block_id)(x)
 
     x = Conv2D(pointwise_conv_filters, (1, 1),
                padding='same',
@@ -254,7 +272,7 @@ def _depthwise_conv_block(inputs, pointwise_conv_filters, alpha,
                strides=(1, 1),
                name='conv_pw_%d' % block_id)(x)
     x = BatchNormalization(axis=channel_axis, name='conv_pw_%d_bn' % block_id)(x)
-    x = Activation(relu4, name='conv_pw_%d_relu' % block_id)(x)
+    x = Activation(relu3, name='conv_pw_%d_relu' % block_id)(x)
 
     # attention_module
     if attention_module is not None:
