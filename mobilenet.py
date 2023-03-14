@@ -19,7 +19,7 @@ from keras.applications import imagenet_utils
 from keras_applications.imagenet_utils import _obtain_input_shape
 from keras.applications.imagenet_utils import decode_predictions
 from keras import backend as K
-from tensorflow.keras.activations import gelu
+from tensorflow.keras.activations import gelu, selu
 
 from attention_module import attach_attention_module
 
@@ -76,6 +76,15 @@ def relu6(x):
     piece3 = K.cast(K.greater(x, 6), dtype='float32') * 6
 
     return piece1 + piece2 + piece3
+
+def h_swish(x):
+    return x * K.relu(x + 3.0, max_value=6.0) / 6.0
+
+def leaky_relu(x, alpha=0.1):
+    return K.relu(x, alpha=alpha)
+
+def combined_relu(x):
+    return K.relu(x, alpha=0.1, max_value=6.0)
 
 def preprocess_input(x):
     """Preprocesses a numpy array encoding a batch of images.
@@ -243,7 +252,7 @@ def _conv_block(inputs, filters, alpha, kernel=(3, 3), strides=(1, 1)):
                strides=strides,
                name='conv1', )(inputs)
     x = BatchNormalization(axis=channel_axis, name='conv1_bn')(x)
-    return Activation(relu3, name='conv1_relu')(x)
+    return ReLU(6.0, name='conv1_relu')(x)
 
 def _depthwise_conv_block(inputs, pointwise_conv_filters, alpha,
                           depth_multiplier=1, strides=(1, 1), block_id=1, attention_module=None,
@@ -264,7 +273,7 @@ def _depthwise_conv_block(inputs, pointwise_conv_filters, alpha,
                         use_bias=False,
                         name='conv_dw_%d' % block_id)(x)
     x = BatchNormalization(axis=channel_axis, name='conv_dw_%d_bn' % block_id)(x)
-    x = Activation(relu3, name='conv_dw_%d_relu' % block_id)(x)
+    x = ReLU(6.0, name='conv_dw_%d_relu' % block_id)(x)
 
     x = Conv2D(pointwise_conv_filters, (1, 1),
                padding='same',
@@ -272,7 +281,7 @@ def _depthwise_conv_block(inputs, pointwise_conv_filters, alpha,
                strides=(1, 1),
                name='conv_pw_%d' % block_id)(x)
     x = BatchNormalization(axis=channel_axis, name='conv_pw_%d_bn' % block_id)(x)
-    x = Activation(relu3, name='conv_pw_%d_relu' % block_id)(x)
+    x = ReLU(6.0, name='conv_pw_%d_relu' % block_id)(x)
 
     # attention_module
     if attention_module is not None:
