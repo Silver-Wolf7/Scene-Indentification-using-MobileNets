@@ -21,8 +21,6 @@ from keras.applications.imagenet_utils import decode_predictions
 from keras import backend as K
 from tensorflow.keras.activations import gelu, selu
 
-from attention_module import attach_attention_module
-
 def elu2(x):
     return K.switch(K.less_equal(x, 1), K.exp(x) - 1, x)
 
@@ -77,6 +75,44 @@ def relu6(x):
 
     return piece1 + piece2 + piece3
 
+def relu10(x):
+    # Define the different pieces of the function
+    piece1 = K.cast(K.greater_equal(x, -0.5), dtype='float32') * K.cast(K.less(x, 0), dtype='float32') * K.zeros_like(x)
+    piece2 = K.cast(K.greater_equal(x, 0), dtype='float32') * K.cast(K.less_equal(x, 6.0), dtype='float32') * x
+    piece3 = K.cast(K.greater(x, 6), dtype='float32') * 6.0
+    piece4 = K.cast(K.greater_equal(x, -6.5), dtype='float32') * K.cast(K.less(x, -0.5), dtype='float32') * (x + 0.5)
+    piece5 = K.cast(K.less(x, -6.5), dtype='float32') * -6.0
+    
+    # Combine the pieces to create the full function
+    return piece1 + piece2 + piece3 + piece4 + piece5
+
+def relu20(x):
+    # Define the different pieces of the function
+    piece1 = K.cast(K.greater(x, 6.0), dtype='float32') * 6.0
+    piece2 = K.cast(K.greater_equal(x, -1), dtype='float32') * K.cast(K.less_equal(x, 6.0), dtype='float32') * x
+    piece3 = K.cast(K.less(x, -1), dtype='float32') * -1
+    
+    # Combine the pieces to create the full function
+    return piece1 + piece2 + piece3
+
+def relu21(x):
+    # Define the different pieces of the function
+    piece1 = K.cast(K.greater(x, 5.0), dtype='float32') * 6.0
+    piece2 = K.cast(K.greater_equal(x, -1/1.2), dtype='float32') * K.cast(K.less_equal(x, 5.0), dtype='float32') * (x*1.2)
+    piece3 = K.cast(K.less(x, -1/1.2), dtype='float32') * -1
+    
+    # Combine the pieces to create the full function
+    return piece1 + piece2 + piece3
+
+def relu22(x):
+    # Define the different pieces of the function
+    piece1 = K.cast(K.greater(x, 7.5), dtype='float32') * 6.0
+    piece2 = K.cast(K.greater_equal(x, -1.25), dtype='float32') * K.cast(K.less_equal(x, 7.5), dtype='float32') * (x*0.8)
+    piece3 = K.cast(K.less(x, -1.25), dtype='float32') * -1
+    
+    # Combine the pieces to create the full function
+    return piece1 + piece2 + piece3
+
 def h_swish(x):
     return x * K.relu(x + 3.0, max_value=6.0) / 6.0
 
@@ -85,15 +121,6 @@ def leaky_relu(x, alpha=0.1):
 
 def combined_relu(x):
     return K.relu(x, alpha=0.1, max_value=6.0)
-
-def preprocess_input(x):
-    """Preprocesses a numpy array encoding a batch of images.
-    # Arguments
-        x: a 4D numpy array consists of RGB values within [0, 255].
-    # Returns
-        Preprocessed array.
-    """
-    return imagenet_utils.preprocess_input(x, mode='tf')
 
 def MobileNet(input_shape=None,
                 alpha=1.0,
@@ -282,9 +309,5 @@ def _depthwise_conv_block(inputs, pointwise_conv_filters, alpha,
                name='conv_pw_%d' % block_id)(x)
     x = BatchNormalization(axis=channel_axis, name='conv_pw_%d_bn' % block_id)(x)
     x = ReLU(6.0, name='conv_pw_%d_relu' % block_id)(x)
-
-    # attention_module
-    if attention_module is not None:
-        x = attach_attention_module(x, attention_module, ratio, kernel_size, c_bias, s_bias)
 		
     return x
