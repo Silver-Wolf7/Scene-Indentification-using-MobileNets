@@ -1,127 +1,35 @@
-from __future__ import print_function
-from __future__ import absolute_import
-from __future__ import division
-
-import warnings
-
-from keras.models import Model
-from keras.layers import Input
-from keras.layers import Activation
-from keras.layers import Dropout
-from keras.layers import Reshape
 from keras.layers import BatchNormalization
 from keras.layers import GlobalAveragePooling2D
 from keras.layers import GlobalMaxPooling2D
-from keras.layers import Conv2D, ZeroPadding2D, DepthwiseConv2D, ReLU, ELU
-from keras.utils.data_utils import get_file
+from keras.layers import Conv2D, ZeroPadding2D, DepthwiseConv2D, ReLU
+from keras.layers import Activation
+from keras.layers import Dropout
+from keras.models import Model
+from keras.layers import Input
+from keras.layers import Reshape
 from keras.utils.layer_utils import get_source_inputs
-from keras.applications import imagenet_utils
 from keras_applications.imagenet_utils import _obtain_input_shape
-from keras.applications.imagenet_utils import decode_predictions
 from keras import backend as K
-from tensorflow.keras.activations import gelu, selu
+from tensorflow.keras.activations import gelu, selu, elu
+from standard_activations import h_swish, combined_relu, leaky_relu
+from custom_activations import custom_activation_A, custom_activation_A_2, custom_activation_A_3
+from custom_activations import custom_activation_A_4, custom_activation_A_5, custom_activation_A_6
+from custom_activations import custom_activation_B, custom_activation_B_2, custom_activation_B_3
 
-def elu2(x):
-    return K.switch(K.less_equal(x, 1), K.exp(x) - 1, x)
+'''
+To chose activation function to use, type one of the names in the activation function list,
+to use the default ReLU6 just keep it as None
+'''
+activation = None
+# list of available activation functions
+activation_functions = [gelu, selu, elu, custom_activation_A, custom_activation_A_2, custom_activation_A_3,
+                        custom_activation_A_4, custom_activation_A_5, custom_activation_A_6, combined_relu,
+                        custom_activation_B, custom_activation_B_2, custom_activation_B_3, h_swish, leaky_relu]
 
-def relu2(x):
-    # Define the different pieces of the function
-    piece1 = K.cast(K.greater(x, -1), dtype='float32') * K.cast(K.less(x, 1), dtype='float32') * 0
-    piece2 = K.cast(K.greater_equal(x, 1), dtype='float32') * K.cast(K.less_equal(x, 6), dtype='float32') * (6/5 * x - 6/5)
-    piece3 = K.cast(K.greater(x, 6), dtype='float32') * 6
-    piece4 = K.cast(K.greater_equal(x, -6), dtype='float32') * K.cast(K.less_equal(x, -1), dtype='float32') * (6/5 * x + 6/5)
-    piece5 = K.cast(K.less(x, -6), dtype='float32') * -6
-    
-    # Combine the pieces to create the full function
-    return piece1 + piece2 + piece3 + piece4 + piece5
-
-def relu3(x):
-    # Define the different pieces of the function
-    piece1 = K.cast(K.greater(x, -0.5), dtype='float32') * K.cast(K.less(x, 0.5), dtype='float32') * K.zeros_like(x)
-    piece2 = K.cast(K.greater_equal(x, 0.5), dtype='float32') * K.cast(K.less_equal(x, 7), dtype='float32') * (6/6.5 * x - 6/6.5 * 0.5)
-    piece3 = K.cast(K.greater(x, 7), dtype='float32') * 6.0
-    piece4 = K.cast(K.greater_equal(x, -7), dtype='float32') * K.cast(K.less_equal(x, -0.5), dtype='float32') * (6/6.5 * x - 6/6.5 * 0.5)
-    piece5 = K.cast(K.less(x, -7), dtype='float32') * (-6.0)
-    
-    # Combine the pieces to create the full function
-    return piece1 + piece2 + piece3 + piece4 + piece5
-
-def relu4(x):
-    # Define the different pieces of the function
-    piece1 = K.cast(K.greater(x, -0.5), dtype='float32') * K.cast(K.less(x, 0.5), dtype='float32') * K.zeros_like(x)
-    piece2 = K.cast(K.greater_equal(x, 0.5), dtype='float32') * K.cast(K.less_equal(x, 5), dtype='float32') * (6/4.5 * x - 6/4.5 * 0.5)
-    piece3 = K.cast(K.greater(x, 5), dtype='float32') * 6.0
-    piece4 = K.cast(K.greater_equal(x, -5), dtype='float32') * K.cast(K.less_equal(x, -0.5), dtype='float32') * (6/4.5 * x + 6/4.5 * 0.5)
-    piece5 = K.cast(K.less(x, -5), dtype='float32') * (-6.0)
-    
-    # Combine the pieces to create the full function
-    return piece1 + piece2 + piece3 + piece4 + piece5
-
-def relu5(x):
-    # Define the different pieces of the function
-    piece1 = K.cast(K.greater(x, -0.5), dtype='float32') * K.cast(K.less(x, 0.5), dtype='float32') * K.zeros_like(x)
-    piece2 = K.cast(K.greater_equal(x, 0.5), dtype='float32') * K.cast(K.less_equal(x, 6), dtype='float32') * (6/5.5 * x - 6/5.5 * 0.5)
-    piece3 = K.cast(K.greater(x, 6), dtype='float32') * 6.0
-    piece4 = K.cast(K.greater_equal(x, -6), dtype='float32') * K.cast(K.less_equal(x, -0.5), dtype='float32') * (6/5.5 * x + 6/5.5 * 0.5)
-    piece5 = K.cast(K.less(x, -6), dtype='float32') * -6.0
-    
-    # Combine the pieces to create the full function
-    return piece1 + piece2 + piece3 + piece4 + piece5
-
-def relu6(x):
-    piece1 = K.cast(K.less(x, -6), dtype='float32') * -6
-    piece2 = K.cast(K.greater_equal(x, -6), dtype='float32') * K.cast(K.less_equal(x, 6), dtype='float32') * x
-    piece3 = K.cast(K.greater(x, 6), dtype='float32') * 6
-
-    return piece1 + piece2 + piece3
-
-def relu10(x):
-    # Define the different pieces of the function
-    piece1 = K.cast(K.greater_equal(x, -0.5), dtype='float32') * K.cast(K.less(x, 0), dtype='float32') * K.zeros_like(x)
-    piece2 = K.cast(K.greater_equal(x, 0), dtype='float32') * K.cast(K.less_equal(x, 6.0), dtype='float32') * x
-    piece3 = K.cast(K.greater(x, 6), dtype='float32') * 6.0
-    piece4 = K.cast(K.greater_equal(x, -6.5), dtype='float32') * K.cast(K.less(x, -0.5), dtype='float32') * (x + 0.5)
-    piece5 = K.cast(K.less(x, -6.5), dtype='float32') * -6.0
-    
-    # Combine the pieces to create the full function
-    return piece1 + piece2 + piece3 + piece4 + piece5
-
-def relu20(x):
-    # Define the different pieces of the function
-    piece1 = K.cast(K.greater(x, 6.0), dtype='float32') * 6.0
-    piece2 = K.cast(K.greater_equal(x, -1), dtype='float32') * K.cast(K.less_equal(x, 6.0), dtype='float32') * x
-    piece3 = K.cast(K.less(x, -1), dtype='float32') * -1
-    
-    # Combine the pieces to create the full function
-    return piece1 + piece2 + piece3
-
-def relu21(x):
-    # Define the different pieces of the function
-    piece1 = K.cast(K.greater(x, 5.0), dtype='float32') * 6.0
-    piece2 = K.cast(K.greater_equal(x, -1/1.2), dtype='float32') * K.cast(K.less_equal(x, 5.0), dtype='float32') * (x*1.2)
-    piece3 = K.cast(K.less(x, -1/1.2), dtype='float32') * -1
-    
-    # Combine the pieces to create the full function
-    return piece1 + piece2 + piece3
-
-def relu22(x):
-    # Define the different pieces of the function
-    piece1 = K.cast(K.greater(x, 7.5), dtype='float32') * 6.0
-    piece2 = K.cast(K.greater_equal(x, -1.25), dtype='float32') * K.cast(K.less_equal(x, 7.5), dtype='float32') * (x*0.8)
-    piece3 = K.cast(K.less(x, -1.25), dtype='float32') * -1
-    
-    # Combine the pieces to create the full function
-    return piece1 + piece2 + piece3
-
-def h_swish(x):
-    return x * K.relu(x + 3.0, max_value=6.0) / 6.0
-
-def leaky_relu(x, alpha=0.1):
-    return K.relu(x, alpha=alpha)
-
-def combined_relu(x):
-    return K.relu(x, alpha=0.1, max_value=6.0)
-
+# MobileNetV1 code from keras source code with slight modifications
+# https://github.com/keras-team/keras/blob/v2.12.0/keras/applications/mobilenet.py
+# The code was also modified with the help
+# https://github.com/kobiso/CBAM-keras/blob/master/models/mobilenets.py
 def MobileNet(input_shape=None,
                 alpha=1.0,
                 depth_multiplier=1,
@@ -279,7 +187,14 @@ def _conv_block(inputs, filters, alpha, kernel=(3, 3), strides=(1, 1)):
                strides=strides,
                name='conv1', )(inputs)
     x = BatchNormalization(axis=channel_axis, name='conv1_bn')(x)
-    return ReLU(6.0, name='conv1_relu')(x)
+    if activation == None:
+        x = ReLU(6.0, name='conv_pw_%d_relu' % block_id)(x)
+    elif activation in activation_functions:
+        x = Activation(activation, name='conv_pw_%d_relu' % block_id)(x)
+    else:
+        raise ValueError("This activation function does not exist")
+    
+    return x
 
 def _depthwise_conv_block(inputs, pointwise_conv_filters, alpha,
                           depth_multiplier=1, strides=(1, 1), block_id=1, attention_module=None,
@@ -300,7 +215,13 @@ def _depthwise_conv_block(inputs, pointwise_conv_filters, alpha,
                         use_bias=False,
                         name='conv_dw_%d' % block_id)(x)
     x = BatchNormalization(axis=channel_axis, name='conv_dw_%d_bn' % block_id)(x)
-    x = ReLU(6.0, name='conv_dw_%d_relu' % block_id)(x)
+    
+    if activation == None:
+        x = ReLU(6.0, name='conv_pw_%d_relu' % block_id)(x)
+    elif activation in activation_functions:
+        x = Activation(activation, name='conv_pw_%d_relu' % block_id)(x)
+    else:
+        raise ValueError("This activation function does not exist")
 
     x = Conv2D(pointwise_conv_filters, (1, 1),
                padding='same',
@@ -308,6 +229,12 @@ def _depthwise_conv_block(inputs, pointwise_conv_filters, alpha,
                strides=(1, 1),
                name='conv_pw_%d' % block_id)(x)
     x = BatchNormalization(axis=channel_axis, name='conv_pw_%d_bn' % block_id)(x)
-    x = ReLU(6.0, name='conv_pw_%d_relu' % block_id)(x)
+    
+    if activation == None:
+        x = ReLU(6.0, name='conv_pw_%d_relu' % block_id)(x)
+    elif activation in activation_functions:
+        x = Activation(activation, name='conv_pw_%d_relu' % block_id)(x)
+    else:
+        raise ValueError("This activation function does not exist")
 		
     return x
